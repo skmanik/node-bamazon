@@ -13,51 +13,40 @@ var connection = mysql.createConnection({
 
 // connect to the mysql server and sql database
 connection.connect(function (err) {
-
     if (err) throw err;
+
     // run the start function after the connection is made to prompt the user
     start();
-
 });
 
 function start() {
+    console.log("\nLet's view all products on BAMAZON...\n");
 
     // display table
     displayTable(askCustomer);
-
 }
 
 function displayTable(callback) {
-
-    console.log("\nLet's view all products on BAMAZON...\n");
     connection.query("SELECT * FROM products", function (err, res) {
-
         if (err) throw err;
 
         console.log("-----------------------------------");
         console.log("id | product name | department | price | stock");
-
         for (var i = 0; i < res.length; i++) {
-
             console.log(res[i].item_id + " | "
                 + res[i].product_name + " | "
                 + res[i].department_name + " | $"
                 + res[i].price + " | "
                 + res[i].stock_quantity);
-
         }
-
         console.log("-----------------------------------\n");
 
         // THEN run this
-        callback(res);
-
+        if (callback) callback(res);
     });
-
 }
 
 function askCustomer(res) {
-
     inquirer
         .prompt([
             {
@@ -79,28 +68,57 @@ function askCustomer(res) {
             }
         ])
         .then(function (answer) {
-
             var chosenItem;
-            for (var i = 0; i < results.length; i++) {
-                if (results[i].item_name === answer.choice) {
-                    chosenItem = results[i];
+            var idNumber = parseInt(answer.idquestion);
+            var amountNumber = parseInt(answer.amountquestion);
+
+            for (var i = 0; i < res.length; i++) {
+                if (res[i].item_id === idNumber) {
+                    chosenItem = res[i];
                 }
             }
 
-            connection.end();
+            if (chosenItem.stock_quantity >= amountNumber) {
+                console.log("\nYou want " + amountNumber + " and we have " + chosenItem.stock_quantity + ".");
+                console.log("There's enough!\n");
 
+                updateDB(chosenItem, idNumber, amountNumber);
+            } else {
+                console.log("\nYou want " + amountNumber + " and we have " + chosenItem.stock_quantity + ".");
+                console.log("We don't have enough. Try again!");
+
+                start();
+            }
         });
 
 }
 
-function cycleIDs(results) {
-
+function cycleIDs(res) {
     var choiceArray = [];
 
-    for (var i = 0; i < results.length; i++) {
-        choiceArray.push(results[i].item_id.toString());
+    for (var i = 0; i < res.length; i++) {
+        choiceArray.push(res[i].item_id.toString());
     }
 
     return choiceArray;
 }
 
+function updateDB(item, id, amount) {
+    connection.query("UPDATE products SET ? WHERE ?",
+        [
+            {
+                stock_quantity: item.stock_quantity - amount
+            },
+            {
+                item_id: id
+            }
+        ],
+        function (error) {
+            if (error) throw error;
+
+            var totalCost = amount * item.price
+            console.log("Your total cost is: $" + totalCost + ". Here's what our stock looks like now!\n");
+            displayTable();
+        }
+    );
+}
